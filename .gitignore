@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.npz
+faiss_index.bin
+faiss_index_hash.txt
+pdf/
+cache/
+uploads/
+.streamlit/secrets.toml
