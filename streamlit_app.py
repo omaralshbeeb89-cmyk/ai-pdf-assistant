@@ -5,6 +5,7 @@ Web version of the AI PDF Assistant.
 """
 
 import hmac
+import os
 import threading
 import time
 from dataclasses import asdict
@@ -32,16 +33,30 @@ LOCKOUT_SECONDS = 60
 FAILED_ATTEMPT_DELAY = 0.5  # seconds; slows down password guessing
 
 
+SECRET_NAMES = ("OPENAI_API_KEY", "APP_PASSWORD")
+
+
+def export_secrets():
+    """Copy Streamlit secrets (set in the cloud dashboard) into the
+    environment, where config.py looks for them. Values already in the
+    environment or .env win."""
+
+    try:
+        for name in SECRET_NAMES:
+            if name in st.secrets and not os.getenv(name):
+                os.environ[name] = str(st.secrets[name])
+    except Exception:
+        # No secrets file: normal when running locally with .env.
+        pass
+
+
+export_secrets()
+
+
 def configured_password():
     """APP_PASSWORD from Streamlit secrets (cloud) or .env (local)."""
 
-    try:
-        password = st.secrets.get("APP_PASSWORD")
-    except Exception:
-        # No secrets file: normal when running locally.
-        password = None
-
-    return password or config.get_app_password()
+    return config.get_app_password()
 
 
 def log_out():
