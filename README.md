@@ -31,7 +31,15 @@ OPENAI_API_KEY=sk-...
 Pick one or more PDFs from the `pdf/` folder, or upload new ones, in the
 sidebar. With several PDFs selected, they are searched together and
 citations name the file, e.g. `[notes.pdf, page 60]`.
-Turn on "Show retrieval details" to see how each passage was ranked.
+Turn on "Show retrieval details" to see how each passage was ranked and
+what each API call cost.
+
+Conversations are saved automatically in `conversations/` (one JSON file
+each) and listed in the sidebar, so you can reopen and continue them after
+a restart. Changing the selected PDFs starts a new conversation. Each
+answer shows its token count and estimated cost; the sidebar shows the
+total for the conversation and for all saved conversations. Prices are
+set in `PRICES_PER_MILLION` in `pdf_assistant/config.py`.
 
 **Terminal**
 
@@ -41,6 +49,10 @@ Turn on "Show retrieval details" to see how each passage was ranked.
 .\.venv\Scripts\python.exe app.py pdf\ISLP_website.pdf pdf\other.pdf # several PDFs
 .\.venv\Scripts\python.exe app.py --debug --rerank                  # details, reranking
 ```
+
+Terminal conversations are saved too and appear in the web app. Each
+answer prints its token count and estimated cost; `exit` prints the
+session total.
 
 Several PDFs share one combined FAISS index and one BM25 index, so scores
 are comparable and the best passages win whichever file they come from.
@@ -104,6 +116,8 @@ pdf_assistant/
   retrieval.py          FAISS + BM25 hybrid search with RRF
   rerank.py             optional model-based reranking
   llm.py                query rewriting and streamed answers
+  usage.py              token counting and cost estimates
+  conversations.py      saving and loading conversations
   cli.py                terminal chat loop
   evaluation.py         test-question generation and retrieval metrics
 eval/                   generated test questions (commit these)

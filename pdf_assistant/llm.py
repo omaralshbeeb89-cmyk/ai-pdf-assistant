@@ -2,7 +2,7 @@
 
 import logging
 
-from . import config
+from . import config, usage
 
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,7 @@ STANDALONE SEARCH QUERY:
             model=config.CHAT_MODEL,
             input=prompt,
         )
+        usage.record_response("rewrite", config.CHAT_MODEL, getattr(response, "usage", None))
         rewritten = response.output_text.strip()
 
     except Exception as error:
@@ -159,6 +160,12 @@ def stream_answer(question, results, history, multi_doc=False):
 
         if event.type == "response.output_text.delta":
             yield event.delta
+
+        elif event.type == "response.completed":
+            response = getattr(event, "response", None)
+            usage.record_response(
+                "answer", config.CHAT_MODEL, getattr(response, "usage", None)
+            )
 
         elif event.type == "response.failed":
             error = getattr(event.response, "error", None)

@@ -3,8 +3,9 @@
 import argparse
 import logging
 import sys
+from dataclasses import asdict
 
-from . import config, ingest, llm, retrieval
+from . import config, conversations, ingest, llm, retrieval, usage
 from .library import build_collection, format_sources
 
 
@@ -97,61 +98,84 @@ def main(argv=None):
     )
     print("Commands:")
     print("  exit  - Close the assistant")
-    print("  reset - Clear conversation memory")
+    print("  reset - Start a new conversation")
+    print("Conversations are saved and also appear in the web app.")
 
-    history = []
+    def start_conversation():
+        return conversations.new_conversation(
+            [str(doc.path.resolve()) for doc in collection.documents],
+            [doc.pdf_hash for doc in collection.documents],
+        )
+
+    conversation = start_conversation()
+    session_usage = []
 
     while True:
 
         try:
             question = input("\nYou: ").strip()
         except (KeyboardInterrupt, EOFError):
-            print("\nGoodbye!")
-            break
+            question = "exit"
+            print()
 
         if not question:
             continue
 
         if question.lower() == "exit":
+            if session_usage:
+                print(f"Session total: {usage.format_usage(usage.total(session_usage))}")
             print("Goodbye!")
             break
 
         if question.lower() == "reset":
-            history.clear()
-            print("Conversation memory cleared.")
+            conversation = start_conversation()
+            print("Started a new conversation.")
             continue
 
+        history = conversations.history(conversation)
+
         try:
-            query = llm.rewrite_question(question, history)
-            results = retrieval.search(collection, query, rerank=args.rerank)
+            with usage.track() as tracked:
+                query = llm.rewrite_question(question, history)
+                results = retrieval.search(collection, query, rerank=args.rerank)
 
-            if not results:
-                print("No relevant chunks found.")
-                continue
+                if not results:
+                    print("No relevant chunks found.")
+                    continue
 
-            if args.debug:
-                _print_debug(query, results)
+                if args.debug:
+                    _print_debug(query, results)
 
-            print("\nAI PDF ASSISTANT:\n")
+                print("\nAI PDF ASSISTANT:\n")
 
-            parts = []
+                parts = []
 
-            for piece in llm.stream_answer(
-                question, results, history, collection.is_multi
-            ):
-                print(piece, end="", flush=True)
-                parts.append(piece)
+                for piece in llm.stream_answer(
+                    question, results, history, collection.is_multi
+                ):
+                    print(piece, end="", flush=True)
+                    parts.append(piece)
 
             answer = "".join(parts).strip()
+            cost = tracked.to_dict()
+            session_usage.append(cost)
 
             print(
                 "\n\nRetrieved sources:",
                 format_sources(results, collection.is_multi),
             )
+            print(f"[{usage.format_usage(cost)}]")
 
-            history.append({"role": "user", "content": question})
-            history.append({"role": "assistant", "content": answer})
-            history = llm.trim_history(history)
+            conversation["messages"].append({"role": "user", "content": question})
+            conversation["messages"].append({
+                "role": "assistant",
+                "content": answer,
+                "query": query,
+                "multi_doc": collection.is_multi,
+                "sources": [asdict(result) for result in results],
+                "usage": cost,
+            })
+            conversations.save(conversation)
 
         except KeyboardInterrupt:
             print("\n(Answer interrupted.)")

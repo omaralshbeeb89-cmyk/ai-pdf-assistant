@@ -6,7 +6,7 @@ from typing import Optional
 import faiss
 import numpy as np
 
-from . import config
+from . import config, usage
 from .ingest import tokenize
 from .library import Collection
 from .rerank import rerank as rerank_results
@@ -30,6 +30,8 @@ def _embed_query(query):
         model=config.EMBEDDING_MODEL,
         input=query,
     )
+
+    usage.record_embedding("search", response)
 
     vector = np.asarray(
         response.data[0].embedding,

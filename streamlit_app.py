@@ -4,12 +4,13 @@ Web version of the AI PDF Assistant.
     streamlit run streamlit_app.py
 """
 
+import threading
 from dataclasses import asdict
 from pathlib import Path
 
 import streamlit as st
 
-from pdf_assistant import config, ingest, llm, retrieval
+from pdf_assistant import config, conversations, ingest, llm, retrieval, usage
 from pdf_assistant.library import build_collection, format_sources
 
 
@@ -31,12 +32,38 @@ def pdf_fingerprint(path, mtime, size):
     return ingest.file_hash(Path(path))
 
 
-@st.cache_resource(show_spinner=False, max_entries=10)
-def load_document(path, pdf_hash, _progress=None):
-    """Load a PDF once and share it between browser sessions.
-    pdf_hash is part of the cache key so an edited file is reloaded."""
+MAX_LOADED_DOCUMENTS = 10
 
-    return ingest.load_document(Path(path), progress=_progress)
+
+@st.cache_resource(show_spinner=False)
+def document_store():
+    """Loaded PDFs shared by all browser sessions, plus a lock.
+
+    st.cache_resource is not used on the loader itself: it would record
+    the progress-bar updates made while embedding a new PDF and fail,
+    because the progress bar is created outside the cached function."""
+
+    return {"documents": {}, "lock": threading.Lock()}
+
+
+def load_document(path, pdf_hash, progress=None):
+    """Load a PDF once; pdf_hash in the key reloads an edited file."""
+
+    store = document_store()
+    key = (path, pdf_hash)
+
+    # The lock stops two sessions from embedding the same PDF at once.
+    with store["lock"]:
+        documents = store["documents"]
+
+        if key not in documents:
+            documents[key] = ingest.load_document(Path(path), progress=progress)
+
+            # Forget the oldest PDF when too many are loaded.
+            while len(documents) > MAX_LOADED_DOCUMENTS:
+                documents.pop(next(iter(documents)))
+
+        return documents[key]
 
 
 @st.cache_resource(show_spinner=False, max_entries=5)
@@ -63,6 +90,33 @@ def save_upload(uploaded):
     target.write_bytes(uploaded.getbuffer())
 
     return target
+
+
+# ==================================================
+# Conversation actions (run as button callbacks,
+# before the page is drawn)
+# ==================================================
+
+def start_new_conversation():
+    st.session_state.conversation = conversations.new_conversation()
+
+
+def open_conversation(conversation_id):
+    try:
+        conversation = conversations.load(conversation_id)
+    except Exception as error:
+        st.session_state.notice = f"Could not open the conversation: {error}"
+        return
+
+    st.session_state.conversation = conversation
+    st.session_state.pdf_choice = [
+        path for path in conversation["pdf_paths"] if Path(path).is_file()
+    ]
+
+
+def delete_current_conversation():
+    conversations.delete(st.session_state.conversation["id"])
+    start_new_conversation()
 
 
 # ==================================================
@@ -108,19 +162,36 @@ def render_sources(message, show_debug):
             st.text(text[:700] + ("…" if len(text) > 700 else ""))
 
 
+def render_usage(message, show_debug):
+    data = message.get("usage")
+
+    if not data:
+        return
+
+    st.caption(usage.format_usage(data))
+
+    if show_debug:
+        for call in data["calls"]:
+            st.caption(
+                f"· {call['purpose']}: {call['input_tokens']:,} in / "
+                f"{call['output_tokens']:,} out · {usage.format_cost(call['cost'])}"
+            )
+
+
 def render_message(message, show_debug):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
         if message["role"] == "assistant":
             render_sources(message, show_debug)
+            render_usage(message, show_debug)
 
 
 # ==================================================
-# Sidebar
+# Sidebar: documents and options
 # ==================================================
 
-st.session_state.setdefault("messages", [])
+st.session_state.setdefault("conversation", conversations.new_conversation())
 
 with st.sidebar:
     st.header("📄 Documents")
@@ -137,14 +208,10 @@ with st.sidebar:
         selection = [p for p in st.session_state.get("pdf_choice", []) if p in pdfs]
         st.session_state.pdf_choice = selection + ([saved] if saved not in selection else [])
 
-    if not pdfs:
-        st.info("Upload a PDF to get started.")
-        st.stop()
-
     # Drop files that no longer exist; pick a default the first time.
     selection = [p for p in st.session_state.get("pdf_choice", []) if p in pdfs]
 
-    if "pdf_choice" not in st.session_state:
+    if "pdf_choice" not in st.session_state and pdfs:
         default = str(config.DEFAULT_PDF)
         selection = [default if default in pdfs else pdfs[0]]
 
@@ -164,102 +231,133 @@ with st.sidebar:
         help="The model re-scores the top 20 passages. Better ordering, about 1s slower.",
     )
 
-    show_debug = st.toggle("Show retrieval details")
+    show_debug = st.toggle("Show retrieval details and cost breakdown")
 
-    if st.button("Clear conversation", use_container_width=True):
-        st.session_state.messages = []
+    st.divider()
+    st.header("💬 Conversations")
+
+    # Filled at the end of the script, so it includes the latest answer.
+    conversations_area = st.container()
 
 
-if not chosen:
+# ==================================================
+# Main area
+# ==================================================
+
+def chat_page():
+    conversation = st.session_state.conversation
+
     st.title("AI PDF Assistant")
-    st.info("Choose at least one PDF in the sidebar.")
-    st.stop()
 
+    if notice := st.session_state.pop("notice", None):
+        st.warning(notice)
 
-# ==================================================
-# Load the selected PDFs
-# ==================================================
-
-try:
-    config.get_client()
-except RuntimeError as error:
-    st.error(str(error))
-    st.stop()
-
-progress_area = st.empty()
-documents = []
-
-for number, choice in enumerate(chosen, start=1):
-    path = Path(choice)
-    stat = path.stat()
-    pdf_hash = pdf_fingerprint(choice, stat.st_mtime, stat.st_size)
-
-    def show_progress(done, total, name=path.name):
-        progress_area.progress(
-            done / total,
-            text=f"Creating embeddings for {name}… {done} / {total} chunks",
-        )
-
-    with st.spinner(f"Loading {path.name} ({number}/{len(chosen)})… first time may take a minute"):
-        try:
-            documents.append(load_document(choice, pdf_hash, _progress=show_progress))
-        except Exception as error:
-            progress_area.empty()
-            st.error(f"Could not load {path.name}: {error}")
-            st.stop()
-
-progress_area.empty()
-
-pdf_hashes = tuple(sorted(doc.pdf_hash for doc in documents))
-
-with st.spinner("Combining documents…"):
-    collection = get_collection(pdf_hashes, documents)
-
-# Start a fresh conversation when the selection changes.
-if st.session_state.get("active_hashes") != pdf_hashes:
-    st.session_state.active_hashes = pdf_hashes
-    st.session_state.messages = []
-
-
-# ==================================================
-# Chat
-# ==================================================
-
-st.title("AI PDF Assistant")
-st.caption(
-    f"{', '.join(collection.names)} · {collection.page_count} pages · "
-    f"{len(collection.chunks)} chunks"
-)
-
-for message in st.session_state.messages:
-    render_message(message, show_debug)
-
-placeholder = "Ask a question about the PDFs" if collection.is_multi else "Ask a question about the PDF"
-question = st.chat_input(placeholder)
-
-if question:
-    history = [
-        {"role": message["role"], "content": message["content"]}
-        for message in st.session_state.messages
+    # A saved conversation whose PDFs are gone can be read, not continued.
+    missing = [
+        Path(path).name
+        for path in conversation["pdf_paths"]
+        if not Path(path).is_file()
     ]
 
+    if conversation["messages"] and missing:
+        for message in conversation["messages"]:
+            render_message(message, show_debug)
+
+        st.warning(
+            f"This conversation used {', '.join(missing)}, which is no longer "
+            "available. You can read it, but start a new conversation to ask more."
+        )
+        return
+
+    if not pdfs:
+        st.info("Upload a PDF in the sidebar to get started.")
+        return
+
+    if not chosen:
+        st.info("Choose at least one PDF in the sidebar.")
+        return
+
+    try:
+        config.get_client()
+    except RuntimeError as error:
+        st.error(str(error))
+        return
+
+    # ---------- load the selected PDFs ----------
+
+    progress_area = st.empty()
+    documents = []
+
+    for number, choice in enumerate(chosen, start=1):
+        path = Path(choice)
+        stat = path.stat()
+        pdf_hash = pdf_fingerprint(choice, stat.st_mtime, stat.st_size)
+
+        def show_progress(done, total, name=path.name):
+            progress_area.progress(
+                done / total,
+                text=f"Creating embeddings for {name}… {done} / {total} chunks",
+            )
+
+        with st.spinner(f"Loading {path.name} ({number}/{len(chosen)})… first time may take a minute"):
+            try:
+                documents.append(load_document(choice, pdf_hash, progress=show_progress))
+            except Exception as error:
+                progress_area.empty()
+                st.error(f"Could not load {path.name}: {error}")
+                return
+
+    progress_area.empty()
+
+    pdf_hashes = tuple(sorted(doc.pdf_hash for doc in documents))
+
+    with st.spinner("Combining documents…"):
+        collection = get_collection(pdf_hashes, documents)
+
+    # A conversation belongs to its PDFs: changing the selection
+    # starts a new one (the old one stays saved).
+    if conversation["messages"] and tuple(sorted(conversation["pdf_hashes"])) != pdf_hashes:
+        start_new_conversation()
+        conversation = st.session_state.conversation
+
+    conversation["pdf_paths"] = list(chosen)
+    conversation["pdf_hashes"] = list(pdf_hashes)
+
+    # ---------- chat ----------
+
+    st.caption(
+        f"{', '.join(collection.names)} · {collection.page_count} pages · "
+        f"{len(collection.chunks)} chunks"
+    )
+
+    for message in conversation["messages"]:
+        render_message(message, show_debug)
+
+    placeholder = "Ask a question about the PDFs" if collection.is_multi else "Ask a question about the PDF"
+    question = st.chat_input(placeholder)
+
+    if not question:
+        return
+
+    history = conversations.history(conversation)
+
     user_message = {"role": "user", "content": question}
-    st.session_state.messages.append(user_message)
     render_message(user_message, show_debug)
 
     with st.chat_message("assistant"):
         try:
-            with st.spinner("Searching…"):
-                query = llm.rewrite_question(question, history)
-                results = retrieval.search(collection, query, rerank=use_rerank)
+            with usage.track() as tracked:
+                with st.spinner("Searching…"):
+                    query = llm.rewrite_question(question, history)
+                    results = retrieval.search(collection, query, rerank=use_rerank)
 
-            if not results:
-                answer = "No relevant passages were found."
-                st.markdown(answer)
-            else:
-                answer = st.write_stream(
-                    llm.stream_answer(question, results, history, collection.is_multi)
-                )
+                if not results:
+                    answer = "No relevant passages were found."
+                    st.markdown(answer)
+                else:
+                    answer = st.write_stream(
+                        llm.stream_answer(question, results, history, collection.is_multi)
+                    )
 
             assistant_message = {
                 "role": "assistant",
@@ -267,12 +365,63 @@ if question:
                 "query": query,
                 "multi_doc": collection.is_multi,
                 "sources": [asdict(result) for result in results],
+                "usage": tracked.to_dict(),
             }
 
             render_sources(assistant_message, show_debug)
-            st.session_state.messages.append(assistant_message)
+            render_usage(assistant_message, show_debug)
 
         except Exception as error:
             st.error(f"An error occurred: {error}")
-            # Drop the unanswered question so history stays consistent.
-            st.session_state.messages.pop()
+            return
+
+    conversation["messages"].extend([user_message, assistant_message])
+
+    try:
+        conversations.save(conversation)
+    except OSError as error:
+        st.warning(f"The answer could not be saved: {error}")
+
+
+chat_page()
+
+
+# ==================================================
+# Sidebar: conversation list and costs
+# ==================================================
+
+with conversations_area:
+    current = st.session_state.conversation
+
+    st.button(
+        "➕ New conversation",
+        on_click=start_new_conversation,
+        use_container_width=True,
+    )
+
+    saved = conversations.list_conversations()
+
+    for item in saved[:30]:
+        st.button(
+            item["title"],
+            key=f"conversation-{item['id']}",
+            on_click=open_conversation,
+            args=(item["id"],),
+            type="primary" if item["id"] == current["id"] else "secondary",
+            help=f"{item['questions']} question(s) · last used {item['updated'].replace('T', ' ')}",
+            use_container_width=True,
+        )
+
+    if current["messages"]:
+        with st.popover("🗑 Delete this conversation", use_container_width=True):
+            st.write("This cannot be undone.")
+            st.button("Delete", type="primary", on_click=delete_current_conversation)
+
+    st.divider()
+
+    if current["messages"]:
+        st.caption(f"This conversation: {usage.format_usage(conversations.conversation_usage(current))}")
+
+    if saved:
+        all_cost = sum(item["cost"] for item in saved)
+        st.caption(f"All saved conversations: {usage.format_cost(all_cost)}")

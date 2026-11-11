@@ -3,7 +3,7 @@
 import json
 import logging
 
-from . import config
+from . import config, usage
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ PASSAGES:
             },
         )
 
+        usage.record_response("rerank", config.RERANK_MODEL, getattr(response, "usage", None))
         data = json.loads(response.output_text)
 
         scores = {

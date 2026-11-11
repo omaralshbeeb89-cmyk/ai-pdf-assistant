@@ -13,11 +13,20 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 PDF_DIR = PROJECT_DIR / "pdf"
 UPLOAD_DIR = PROJECT_DIR / "uploads"
 CACHE_DIR = PROJECT_DIR / "cache"
+CONVERSATIONS_DIR = PROJECT_DIR / "conversations"
 DEFAULT_PDF = PDF_DIR / "ISLP_website.pdf"
 
 # Models
 EMBEDDING_MODEL = "text-embedding-3-small"
 CHAT_MODEL = "gpt-4.1-mini"
+
+# Estimated prices in US$ per 1 million tokens: (input, output).
+# Used only to show approximate costs. Check
+# https://openai.com/api/pricing and update if they change.
+PRICES_PER_MILLION = {
+    "gpt-4.1-mini": (0.40, 1.60),
+    "text-embedding-3-small": (0.02, 0.0),
+}
 
 # Chunking
 CHUNK_SIZE = 1000

@@ -9,3 +9,4 @@ cache/
 uploads/
 .streamlit/secrets.toml
 .pytest_cache/
+conversations/

@@ -12,7 +12,7 @@ import numpy as np
 from pypdf import PdfReader
 from rank_bm25 import BM25Okapi
 
-from . import config
+from . import config, usage
 
 
 logger = logging.getLogger(__name__)
@@ -244,6 +244,8 @@ def _embed(chunks, progress=None):
             model=config.EMBEDDING_MODEL,
             input=batch,
         )
+
+        usage.record_embedding("indexing", response)
 
         vectors.extend(
             item.embedding
