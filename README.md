@@ -49,6 +49,17 @@ The first run on a PDF creates embeddings (a few cents with
 `text-embedding-3-small`); they are cached in `cache/` so later runs
 start in about a second.
 
+## Tests
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest
+```
+
+The tests use small generated PDFs and a fake OpenAI client, so they run
+in about a second and cost nothing. Any accidental call to the real API
+fails the test.
+
 ## Evaluation
 
 Measure how often the search finds the right page:
@@ -96,4 +107,5 @@ pdf_assistant/
   cli.py                terminal chat loop
   evaluation.py         test-question generation and retrieval metrics
 eval/                   generated test questions (commit these)
+tests/                  pytest suite (no API calls)
 ```

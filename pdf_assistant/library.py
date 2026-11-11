@@ -44,7 +44,14 @@ def build_collection(documents):
     """
 
     # The same file can be selected twice (e.g. pdf/ and uploads/).
-    unique = list({doc.pdf_hash: doc for doc in documents}.values())
+    # Keep the first copy so the order of the documents is preserved.
+    unique = []
+    seen = set()
+
+    for doc in documents:
+        if doc.pdf_hash not in seen:
+            seen.add(doc.pdf_hash)
+            unique.append(doc)
 
     if not unique:
         raise ValueError("Select at least one PDF.")
