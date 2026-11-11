@@ -33,6 +33,15 @@ TOP_K = 5
 CANDIDATE_K = 10
 RRF_K = 60
 
+# Reranking: the hybrid search collects RERANK_CANDIDATES passages,
+# then the model scores them and the best TOP_K are kept.
+# Off by default: on the ISLP test set (40 questions) it raised MRR
+# from 0.80 to 0.86 but lowered page hit@5 from 97.5% to 92.5% and
+# doubled search time. Re-run the evaluation before changing this.
+RERANK = False
+RERANK_MODEL = CHAT_MODEL
+RERANK_CANDIDATES = 20
+
 # Keep the last 3 conversation turns.
 MAX_HISTORY_MESSAGES = 6
 

@@ -1,0 +1,202 @@
+[
+  {
+    "question": "What challenges arise when modeling survival time in medical studies, and why is censoring important in survival analysis?",
+    "page": 475,
+    "chunk_index": 1546
+  },
+  {
+    "question": "What does the R-squared value indicate in a linear regression analysis, and how is it interpreted?",
+    "page": 88,
+    "chunk_index": 269
+  },
+  {
+    "question": "How can we represent a data matrix in terms of its rows and columns, and what does the transpose of such a matrix represent?",
+    "page": 20,
+    "chunk_index": 62
+  },
+  {
+    "question": "How do principal component scores help in distinguishing different cancer types based on gene expression data?",
+    "page": 553,
+    "chunk_index": 1794
+  },
+  {
+    "question": "Why is it important to standardize features like age and salary before using KNN classification, and how does scaling affect the results?",
+    "page": 194,
+    "chunk_index": 659
+  },
+  {
+    "question": "How do naive Bayes and QDA differ in their assumptions and flexibility when modeling class probabilities?",
+    "page": 172,
+    "chunk_index": 585
+  },
+  {
+    "question": "How does Linear Discriminant Analysis estimate the class means, shared variance, and class probabilities, and how are these estimates used for classification?",
+    "page": 158,
+    "chunk_index": 538
+  },
+  {
+    "question": "How can linear regression models be extended to capture non-linear relationships between variables?",
+    "page": 107,
+    "chunk_index": 337
+  },
+  {
+    "question": "Why is it recommended to use a high number of initializations (n_init) and set a random seed when performing K-means clustering?",
+    "page": 549,
+    "chunk_index": 1783
+  },
+  {
+    "question": "How does the least squares regression line compare to the true linear relationship in a simple linear regression model with normally distributed errors?",
+    "page": 82,
+    "chunk_index": 248
+  },
+  {
+    "question": "How does the log-likelihood ratio test indicate the significance of differences between groups in the context of a Cox proportional hazards model?",
+    "page": 503,
+    "chunk_index": 1635
+  },
+  {
+    "question": "How can unsupervised techniques like PCA and hierarchical clustering be applied to gene expression data from cancer cell lines, and how do the resulting clusters relate to known cancer types?",
+    "page": 552,
+    "chunk_index": 1791
+  },
+  {
+    "question": "How can ROC curves be used to evaluate the performance of SVM models on training versus test datasets, and what role does the parameter gamma play in the model's accuracy?",
+    "page": 400,
+    "chunk_index": 1318
+  },
+  {
+    "question": "How can you filter a pandas DataFrame for cars made after 1980 with more than 30 miles per gallon using a lambda function?",
+    "page": 69,
+    "chunk_index": 212
+  },
+  {
+    "question": "Why might one choose a simpler model like the lasso with fewer variables over more complex models such as neural networks for prediction tasks?",
+    "page": 433,
+    "chunk_index": 1426
+  },
+  {
+    "question": "Why do we try to estimate a function relating input variables to an output in statistical learning?",
+    "page": 27,
+    "chunk_index": 81
+  },
+  {
+    "question": "How can statistical learning help a company decide how to allocate its advertising budget to increase product sales?",
+    "page": 25,
+    "chunk_index": 75
+  },
+  {
+    "question": "How do parametric and non-parametric statistical learning methods differ, and when might one be preferred over the other in regression or classification tasks?",
+    "page": 74,
+    "chunk_index": 227
+  },
+  {
+    "question": "How does the choice of baseline category affect the interpretation of parameters in multinomial logistic regression?",
+    "page": 154,
+    "chunk_index": 525
+  },
+  {
+    "question": "How does changing the classification threshold affect the error rates for individuals who default versus those who do not?",
+    "page": 163,
+    "chunk_index": 559
+  },
+  {
+    "question": "How do you train and interpret a regression tree model to predict median house prices using socioeconomic and crime data?",
+    "page": 366,
+    "chunk_index": 1219
+  },
+  {
+    "question": "How do regularized methods like ridge regression impact the occurrence of the double descent phenomenon and test error in fitting models such as natural splines?",
+    "page": 441,
+    "chunk_index": 1452
+  },
+  {
+    "question": "What are some fundamental concepts and methods introduced in the early chapters of a statistical learning textbook?",
+    "page": 22,
+    "chunk_index": 66
+  },
+  {
+    "question": "How do convolutional neural networks recognize and classify objects in images?",
+    "page": 414,
+    "chunk_index": 1359
+  },
+  {
+    "question": "How do you determine the number of clusters in a dendrogram, and what does cutting the dendrogram at different heights represent?",
+    "page": 533,
+    "chunk_index": 1733
+  },
+  {
+    "question": "What is the hazard function in survival analysis and why is it important for modeling survival data?",
+    "page": 483,
+    "chunk_index": 1570
+  },
+  {
+    "question": "What are some methods to handle missing data in a dataset before applying statistical learning techniques?",
+    "page": 521,
+    "chunk_index": 1695
+  },
+  {
+    "question": "How can step functions be used to model a relationship between variables without assuming a global structure, and how are they constructed from a continuous feature?",
+    "page": 300,
+    "chunk_index": 1009
+  },
+  {
+    "question": "How can posterior probabilities for class membership be calculated using generative models in classification tasks?",
+    "page": 156,
+    "chunk_index": 531
+  },
+  {
+    "question": "How can transparency and multiple line types be used in a plot to show polynomial regression fits and data density?",
+    "page": 320,
+    "chunk_index": 1081
+  },
+  {
+    "question": "How does the complexity and parameter count differ between a linear model with lasso regularization and a neural network with one hidden layer when fitting data?",
+    "page": 432,
+    "chunk_index": 1423
+  },
+  {
+    "question": "How does the accuracy of a K-nearest neighbors classifier in predicting insurance purchases change when varying the number of neighbors from 1 to 5?",
+    "page": 196,
+    "chunk_index": 665
+  },
+  {
+    "question": "What topics related to decision trees and their analysis are covered in this reference list?",
+    "page": 605,
+    "chunk_index": 1963
+  },
+  {
+    "question": "Why do we convert a test statistic into a p-value in hypothesis testing, and how does it help determine evidence against the null hypothesis?",
+    "page": 567,
+    "chunk_index": 1839
+  },
+  {
+    "question": "How do the Holm and Bonferroni procedures differ in controlling the family-wise error rate (FWER) at specified significance levels, and how are p-values from linear models used to decide which null hypotheses to reject under these procedures?",
+    "page": 601,
+    "chunk_index": 1953
+  },
+  {
+    "question": "Why might a parametric method like linear regression perform better than a non-parametric method like KNN regression when the true relationship between variables is linear?",
+    "page": 121,
+    "chunk_index": 386
+  },
+  {
+    "question": "Why is it important to scale variables to have the same standard deviation before performing principal component analysis (PCA)?",
+    "page": 519,
+    "chunk_index": 1687
+  },
+  {
+    "question": "What is a limitation of forward stepwise selection compared to best subset selection when choosing models with different numbers of variables?",
+    "page": 242,
+    "chunk_index": 817
+  },
+  {
+    "question": "How can we determine if advertising is related to sales, and how strong is that relationship?",
+    "page": 118,
+    "chunk_index": 375
+  },
+  {
+    "question": "How can student status be linked to both higher and lower probabilities of default depending on the analysis method?",
+    "page": 152,
+    "chunk_index": 516
+  }
+]

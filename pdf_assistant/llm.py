@@ -81,11 +81,28 @@ STANDALONE SEARCH QUERY:
     return rewritten or question
 
 
-def build_answer_prompt(question, results, history):
+def source_label(result, multi_doc):
+    """How a passage is labelled in the context and in citations."""
+
+    if multi_doc:
+        return f"{result.source}, page {result.page}"
+
+    return f"PDF page {result.page}"
+
+
+def build_answer_prompt(question, results, history, multi_doc=False):
     context = "\n\n---\n\n".join(
-        f"[PDF page {result.page}]\n{result.text}"
+        f"[{source_label(result, multi_doc)}]\n{result.text}"
         for result in results
     )
+
+    if multi_doc:
+        citation_rule = (
+            "Cite factual claims using [file name, page N], "
+            "e.g. [book.pdf, page 12]."
+        )
+    else:
+        citation_rule = "Cite factual claims using [PDF page N]."
 
     return f"""
 You are an intelligent PDF assistant.
@@ -110,9 +127,9 @@ IMPORTANT RULES:
    say:
    "I couldn't find the answer in the provided PDF."
 
-6. Cite factual claims using [PDF page N].
+6. {citation_rule}
 
-7. Only cite page numbers explicitly shown in the context.
+7. Only cite sources and page numbers explicitly shown in the context.
 
 8. Explain concepts clearly and simply.
 
@@ -129,12 +146,12 @@ ANSWER:
 """
 
 
-def stream_answer(question, results, history):
+def stream_answer(question, results, history, multi_doc=False):
     """Yield the answer piece by piece as the model writes it."""
 
     stream = config.get_client().responses.create(
         model=config.CHAT_MODEL,
-        input=build_answer_prompt(question, results, history),
+        input=build_answer_prompt(question, results, history, multi_doc),
         stream=True,
     )
 

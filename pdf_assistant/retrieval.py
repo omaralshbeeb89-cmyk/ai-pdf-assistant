@@ -7,18 +7,22 @@ import faiss
 import numpy as np
 
 from . import config
-from .ingest import Document, tokenize
+from .ingest import tokenize
+from .library import Collection
+from .rerank import rerank as rerank_results
 
 
 @dataclass
 class SearchResult:
     chunk_index: int
+    source: str
     page: int
     text: str
     rrf_score: float
     faiss_rank: Optional[int]
     faiss_score: Optional[float]
     bm25_score: float
+    rerank_score: Optional[float] = None
 
 
 def _embed_query(query):
@@ -38,17 +42,24 @@ def _embed_query(query):
 
 
 def search(
-    doc: Document,
+    collection: Collection,
     query,
     top_k=config.TOP_K,
     candidate_k=config.CANDIDATE_K,
+    rerank=config.RERANK,
 ):
     """Return the top_k most relevant chunks for the query."""
 
-    candidate_k = min(candidate_k, len(doc.chunks))
+    # With reranking, collect a wider pool for the model to choose from.
+    pool_size = max(top_k, config.RERANK_CANDIDATES) if rerank else top_k
+
+    if rerank:
+        candidate_k = max(candidate_k, config.RERANK_CANDIDATES)
+
+    candidate_k = min(candidate_k, len(collection.chunks))
 
     # Semantic search
-    scores, indices = doc.index.search(_embed_query(query), candidate_k)
+    scores, indices = collection.index.search(_embed_query(query), candidate_k)
 
     semantic = {
         int(chunk_index): (rank, float(score))
@@ -63,9 +74,9 @@ def search(
     tokens = tokenize(query)
 
     if tokens:
-        keyword_scores = doc.bm25.get_scores(tokens)
+        keyword_scores = collection.bm25.get_scores(tokens)
     else:
-        keyword_scores = np.zeros(len(doc.chunks))
+        keyword_scores = np.zeros(len(collection.chunks))
 
     positive = np.flatnonzero(keyword_scores > 0)
 
@@ -91,7 +102,7 @@ def search(
         rrf_scores.items(),
         key=lambda item: item[1],
         reverse=True,
-    )[:top_k]
+    )[:pool_size]
 
     results = []
 
@@ -101,13 +112,17 @@ def search(
         results.append(
             SearchResult(
                 chunk_index=chunk_index,
-                page=doc.chunk_pages[chunk_index],
-                text=doc.chunks[chunk_index],
+                source=collection.chunk_sources[chunk_index],
+                page=collection.chunk_pages[chunk_index],
+                text=collection.chunks[chunk_index],
                 rrf_score=rrf_score,
                 faiss_rank=faiss_rank,
                 faiss_score=faiss_score,
                 bm25_score=float(keyword_scores[chunk_index]),
             )
         )
+
+    if rerank:
+        return rerank_results(query, results, top_k)
 
     return results

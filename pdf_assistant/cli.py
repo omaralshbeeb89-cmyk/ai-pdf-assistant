@@ -5,6 +5,7 @@ import logging
 import sys
 
 from . import config, ingest, llm, retrieval
+from .library import build_collection, format_sources
 
 
 def _print_debug(query, results):
@@ -16,6 +17,7 @@ def _print_debug(query, results):
     for rank, result in enumerate(results, start=1):
         print(f"\nResult #{rank}")
         print("Chunk index:", result.chunk_index)
+        print("Source:", result.source)
         print("PDF page:", result.page)
         print("RRF score:", f"{result.rrf_score:.6f}")
 
@@ -26,25 +28,36 @@ def _print_debug(query, results):
             print("FAISS: Not in semantic candidates")
 
         print("BM25 score:", f"{result.bm25_score:.4f}")
+
+        if result.rerank_score is not None:
+            print("Rerank score:", f"{result.rerank_score:.0f} / 10")
         print("\nRetrieved text:")
         print(result.text[:500])
         print("-" * 60)
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Ask questions about a PDF.")
+    parser = argparse.ArgumentParser(description="Ask questions about one or more PDFs.")
 
     parser.add_argument(
-        "pdf",
-        nargs="?",
-        default=str(config.DEFAULT_PDF),
-        help="Path to the PDF file (default: pdf/ISLP_website.pdf)",
+        "pdfs",
+        nargs="*",
+        default=[str(config.DEFAULT_PDF)],
+        metavar="pdf",
+        help="PDF files to search together (default: pdf/ISLP_website.pdf)",
     )
 
     parser.add_argument(
         "--debug",
         action="store_true",
         help="Print retrieval details before each answer",
+    )
+
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        default=config.RERANK,
+        help="Let the model re-score search results (slower)",
     )
 
     args = parser.parse_args(argv)
@@ -61,15 +74,27 @@ def main(argv=None):
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     try:
-        doc = ingest.load_document(
-            args.pdf,
-            progress=lambda done, total: print(f"Processed {done} / {total} chunks"),
-        )
+        documents = []
+
+        for pdf in args.pdfs:
+            print(f"Loading {pdf}...")
+            documents.append(
+                ingest.load_document(
+                    pdf,
+                    progress=lambda done, total: print(f"Processed {done} / {total} chunks"),
+                )
+            )
+
+        collection = build_collection(documents)
+
     except (FileNotFoundError, ValueError, RuntimeError) as error:
         print(f"Error: {error}")
         return 1
 
-    print(f"\nAI PDF ASSISTANT READY  ({doc.name}, {len(doc.chunks)} chunks)")
+    print(
+        f"\nAI PDF ASSISTANT READY  "
+        f"({', '.join(collection.names)}; {len(collection.chunks)} chunks)"
+    )
     print("Commands:")
     print("  exit  - Close the assistant")
     print("  reset - Clear conversation memory")
@@ -98,7 +123,7 @@ def main(argv=None):
 
         try:
             query = llm.rewrite_question(question, history)
-            results = retrieval.search(doc, query)
+            results = retrieval.search(collection, query, rerank=args.rerank)
 
             if not results:
                 print("No relevant chunks found.")
@@ -111,14 +136,18 @@ def main(argv=None):
 
             parts = []
 
-            for piece in llm.stream_answer(question, results, history):
+            for piece in llm.stream_answer(
+                question, results, history, collection.is_multi
+            ):
                 print(piece, end="", flush=True)
                 parts.append(piece)
 
             answer = "".join(parts).strip()
 
-            pages = sorted({result.page for result in results})
-            print("\n\nRetrieved source pages:", ", ".join(map(str, pages)))
+            print(
+                "\n\nRetrieved sources:",
+                format_sources(results, collection.is_multi),
+            )
 
             history.append({"role": "user", "content": question})
             history.append({"role": "assistant", "content": answer})
