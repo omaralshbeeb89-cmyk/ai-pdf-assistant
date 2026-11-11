@@ -18,7 +18,15 @@ Create a `.env` file in the project folder:
 
 ```
 OPENAI_API_KEY=sk-...
+APP_PASSWORD=choose-a-long-password   # optional locally, required online
 ```
+
+When `APP_PASSWORD` is set, the web app asks for it before showing
+anything. After 5 wrong attempts the form is locked for a minute.
+Without it the app is open to anyone who can reach it, which is fine on
+your own computer but **never put the app online without a password**:
+visitors would be using your OpenAI key. On Streamlit Community Cloud,
+set `APP_PASSWORD` and `OPENAI_API_KEY` under *App settings → Secrets*.
 
 ## Run
 

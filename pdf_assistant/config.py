@@ -62,6 +62,15 @@ if not 0 <= CHUNK_OVERLAP < CHUNK_SIZE:
     raise ValueError("CHUNK_OVERLAP must be >= 0 and < CHUNK_SIZE.")
 
 
+def get_app_password():
+    """Password for the web app from APP_PASSWORD (.env or environment).
+    None means the app is open to anyone who can reach it."""
+
+    load_dotenv(PROJECT_DIR / ".env")
+
+    return os.getenv("APP_PASSWORD") or None
+
+
 @lru_cache(maxsize=1)
 def get_client():
     """Create the OpenAI client once, on first use."""

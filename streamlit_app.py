@@ -4,7 +4,9 @@ Web version of the AI PDF Assistant.
     streamlit run streamlit_app.py
 """
 
+import hmac
 import threading
+import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -19,6 +21,77 @@ st.set_page_config(
     page_icon="📄",
     layout="centered",
 )
+
+
+# ==================================================
+# Password protection
+# ==================================================
+
+MAX_ATTEMPTS = 5
+LOCKOUT_SECONDS = 60
+FAILED_ATTEMPT_DELAY = 0.5  # seconds; slows down password guessing
+
+
+def configured_password():
+    """APP_PASSWORD from Streamlit secrets (cloud) or .env (local)."""
+
+    try:
+        password = st.secrets.get("APP_PASSWORD")
+    except Exception:
+        # No secrets file: normal when running locally.
+        password = None
+
+    return password or config.get_app_password()
+
+
+def log_out():
+    st.session_state.authenticated = False
+
+
+def require_login():
+    """Show a login form and stop the page until the password is right."""
+
+    password = configured_password()
+
+    if not password or st.session_state.get("authenticated"):
+        return
+
+    st.title("AI PDF Assistant")
+    st.caption("This app is password-protected.")
+
+    remaining = int(st.session_state.get("locked_until", 0) - time.time())
+
+    if remaining > 0:
+        st.error(f"Too many wrong attempts. Try again in {remaining} seconds.")
+        st.stop()
+
+    with st.form("login"):
+        entered = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in", type="primary")
+
+    if submitted:
+        # compare_digest takes the same time for any wrong password,
+        # so timing can't reveal how much of a guess was right.
+        if hmac.compare_digest(entered.encode("utf-8"), str(password).encode("utf-8")):
+            st.session_state.authenticated = True
+            st.session_state.failed_attempts = 0
+            st.rerun()
+
+        time.sleep(FAILED_ATTEMPT_DELAY)
+        failures = st.session_state.get("failed_attempts", 0) + 1
+
+        if failures >= MAX_ATTEMPTS:
+            st.session_state.locked_until = time.time() + LOCKOUT_SECONDS
+            st.session_state.failed_attempts = 0
+            st.error(f"Too many wrong attempts. Try again in {LOCKOUT_SECONDS} seconds.")
+        else:
+            st.session_state.failed_attempts = failures
+            st.error(f"Wrong password. {MAX_ATTEMPTS - failures} attempt(s) left.")
+
+    st.stop()
+
+
+require_login()
 
 
 # ==================================================
@@ -425,3 +498,11 @@ with conversations_area:
     if saved:
         all_cost = sum(item["cost"] for item in saved)
         st.caption(f"All saved conversations: {usage.format_cost(all_cost)}")
+
+    if configured_password():
+        st.button("🔒 Log out", on_click=log_out, use_container_width=True)
+    else:
+        st.caption(
+            "🔓 No password set: fine on your own computer. Set APP_PASSWORD "
+            "before putting the app online."
+        )
